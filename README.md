@@ -15,7 +15,7 @@
 ### 首页 — 4 个 Agent
 
 <p align="center">
-  <img src="docs/screenshots/首页.png" alt="首页" width="80%">
+  <img src="./docs/screenshots/首页.png" alt="首页" width="80%">
 </p>
 
 ---
@@ -23,7 +23,7 @@
 ### 总控台 — 任务编排 + CLEAR 评估
 
 <p align="center">
-  <img src="docs/screenshots/总控台.png" alt="总控台" width="80%">
+  <img src="./docs/screenshots/总控台.png" alt="总控台" width="80%">
 </p>
 
 ---
@@ -35,7 +35,7 @@
 调用百度 / DuckDuckGo 搜索 API，LLM 自动汇总搜索结果。
 
 <p align="center">
-  <img src="docs/screenshots/搜索Agent.png" alt="搜索" width="80%">
+  <img src="./docs/screenshots/搜索Agent.png" alt="搜索" width="80%">
 </p>
 
 ---
@@ -45,7 +45,7 @@
 基于 ChromaDB 向量存储 + 混合检索（RRF 融合），实现多轮知识库问答。
 
 <p align="center">
-  <img src="docs/screenshots/智能问答Agent.png" alt="问答" width="80%">
+  <img src="./docs/screenshots/智能问答Agent.png" alt="问答" width="80%">
 </p>
 
 ---
@@ -55,7 +55,7 @@
 复杂任务自动拆解为 DAG 步骤，串行/并行执行，实时追踪进度。
 
 <p align="center">
-  <img src="docs/screenshots/工作流Agent.png" alt="工作流" width="80%">
+  <img src="./docs/screenshots/工作流Agent.png" alt="工作流" width="80%">
 </p>
 
 ---
@@ -63,7 +63,7 @@
 ### 客诉工单 Agent — LangGraph 8 节点状态机
 
 <p align="center">
-  <img src="docs/screenshots/客诉工单Agent.png" alt="客诉工单" width="80%">
+  <img src="./docs/screenshots/客诉工单Agent.png" alt="客诉工单" width="80%">
 </p>
 
 基于 LangGraph StateGraph 实现：
@@ -76,7 +76,7 @@
 ### 用户中心
 
 <p align="center">
-  <img src="docs/screenshots/用户中心.png" alt="用户中心" width="80%">
+  <img src="./docs/screenshots/用户中心.png" alt="用户中心" width="80%">
 </p>
 
 ---
