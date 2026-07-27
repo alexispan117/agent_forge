@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} — AgentForge</title>
+    <style>
+        :root {
+            --primary: #1E5EFF; --primary-dark: #0040CC;
+            --primary-gradient: linear-gradient(135deg, #1E5EFF, #7C5CFC);
+            --bg: #F5F7FA; --bg-white: #fff;
+            --border: #E8ECF1; --text: #1A2332;
+            --text-secondary: #5A6678; --text-muted: #8B95A5;
+            --radius: 12px; --radius-sm: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        .split-layout { display: flex; min-height: 100vh; width: 100%; }
+        .split-brand {
+            flex: 1; background: var(--primary-gradient);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 60px; color: #fff;
+        }
+        .split-brand .brand-icon { font-size: 64px; margin-bottom: 20px; }
+        .split-brand h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+        .split-brand p { font-size: 16px; opacity: .85; max-width: 400px; text-align: center; line-height: 1.7; }
+        .split-form {
+            width: 440px; padding: 60px 48px;
+            display: flex; flex-direction: column; justify-content: center;
+            background: var(--bg-white);
+        }
+        .split-form h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .split-form .subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            color: var(--text-secondary); font-size: 13px; font-weight: 500;
+            display: block; margin-bottom: 6px;
+        }
+        .input {
+            width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 16px;
+            color: var(--text); font-size: 14px; outline: none;
+            transition: border-color .2s;
+        }
+        .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,94,255,.12); }
+        .btn {
+            width: 100%; background: var(--primary-gradient); color: #fff;
+            padding: 12px; border: none; border-radius: var(--radius-sm);
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: opacity .2s;
+        }
+        .btn:hover { opacity: .9; }
+        .error-box {
+            background: #FFF0EF; border: 1px solid #FF3B30; border-radius: var(--radius-sm);
+            padding: 12px 16px; margin-bottom: 20px; color: #D62B20; font-size: 14px;
+        }
+        .footer-link { text-align: center; margin-top: 24px; font-size: 14px; color: var(--text-secondary); }
+    </style>
+</head>
+<body>
+<div class="split-layout">
+    <div class="split-brand">
+        <div class="brand-icon">🤖</div>
+        <h2>AgentForge</h2>
+        <p>AI Agent 工具箱 —— 基于本地知识库的智能问答与信息搜索</p>
+    </div>
+    <div class="split-form">
+        <h2>{% block form_title %}{% endblock %}</h2>
+        <p class="subtitle">{% block form_subtitle %}{% endblock %}</p>
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        {% block form_content %}{% endblock %}
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# AgentForge 依赖
+# ── CLI / 基础 ──
+click>=8.0
+rich>=13.0
+pyyaml>=6.0
+python-dotenv>=1.0
+# ── Web ──
+fastapi>=0.100
+uvicorn[standard]>=0.22
+jinja2>=3.1
+python-multipart>=0.0.9
+# ── 持久层 ──
+sqlalchemy>=2.0
+bcrypt>=4.0
+# ── LLM / 检索 ──
+openai>=1.0
+httpx>=0.27
+requests>=2.28
+beautifulsoup4>=4.12
+chromadb>=1.0
+# ── Agent 生态（toolkit/langchain_adapter）──
+langchain-core>=0.3.0
+langgraph>=0.2.0
+langgraph-checkpoint>=2.0.0
+pydantic>=2.0
+pydantic-settings>=2.0

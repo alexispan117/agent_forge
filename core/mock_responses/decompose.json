@@ -1,0 +1,12 @@
+[
+  {
+    "intent": "decompose",
+    "response": "{\"tasks\":[{\"id\":1,\"name\":\"合同文本解析\",\"agent\":\"analyst\",\"depends_on\":[],\"status\":\"pending\"},{\"id\":2,\"name\":\"敏感信息识别\",\"agent\":\"analyst\",\"depends_on\":[1],\"status\":\"pending\"},{\"id\":3,\"name\":\"数据脱敏处理\",\"agent\":\"desensitize\",\"depends_on\":[2],\"status\":\"pending\"},{\"id\":4,\"name\":\"合规规则审查\",\"agent\":\"analyst\",\"depends_on\":[3],\"status\":\"pending\"},{\"id\":5,\"name\":\"审批流程发起\",\"agent\":\"supervisor\",\"depends_on\":[4],\"status\":\"pending\"},{\"id\":6,\"name\":\"审计报告生成\",\"agent\":\"report\",\"depends_on\":[4,5],\"status\":\"pending\"}]}",
+    "delay_s": 0.5
+  },
+  {
+    "intent": "decompose",
+    "response": "{\"tasks\":[{\"id\":1,\"name\":\"文档加载与预处理\",\"agent\":\"analyst\",\"depends_on\":[],\"status\":\"pending\"},{\"id\":2,\"name\":\"关键字段提取\",\"agent\":\"analyst\",\"depends_on\":[1],\"status\":\"pending\"},{\"id\":3,\"name\":\"跨文档交叉验证\",\"agent\":\"analyst\",\"depends_on\":[2],\"status\":\"pending\"},{\"id\":4,\"name\":\"异常检测与标记\",\"agent\":\"analyst\",\"depends_on\":[3],\"status\":\"pending\"},{\"id\":5,\"name\":\"脱敏与报告生成\",\"agent\":\"report\",\"depends_on\":[4],\"status\":\"pending\"}]}",
+    "delay_s": 0.6
+  }
+]

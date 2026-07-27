@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="/static/js/dashboard.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="orch-container">
+  <!-- 头部 -->
+  <div class="orch-header">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <a href="/" style="display:inline-flex;align-items:center;gap:6px;background:transparent;border:1.5px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--text-secondary);font-size:13px;font-weight:500;text-decoration:none;transition:all .15s;" 
+         onmouseover="this.style.background='var(--bg-page)';this.style.borderColor='var(--color-primary)';this.style.color='var(--color-primary)'" 
+         onmouseout="this.style.background='transparent';this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+        ← 返回首页
+      </a>
+      <h2 style="margin:0;font-size:20px;font-weight:700;color:var(--text);">🎛️ Orchestrator 总控台</h2>
+    </div>
+    <p style="font-size:14px;color:var(--text-secondary);margin:0;padding-left:4px;">企业内控合规审计 · 多 Agent 协作 · 实时 CLEAR 评估</p>
+  </div>
+
+  <!-- 控制栏 -->
+  <div class="orch-controls">
+    <input class="input" id="taskInput" placeholder="输入审计任务，如：审计 data/demo/contracts 目录下所有合同的合规性"
+           onkeydown="if(event.key==='Enter') startWorkflow()">
+    <button class="btn-primary" onclick="startWorkflow()">🚀 开始审计</button>
+    <button class="btn-ghost" onclick="injectFault()">💥 注入故障</button>
+    <button class="btn-ghost" onclick="showAgentCards()">🌐 服务发现</button>
+    <span class="orch-status" id="wfStatus">就绪</span>
+  </div>
+
+  <!-- 五维指标行 -->
+  <div class="orch-metrics" id="metricsRow">
+    <div class="metric-item"><div class="metric-value" id="mCost">—</div><div class="metric-label">💰 成本 Cost</div></div>
+    <div class="metric-item"><div class="metric-value" id="mLatency">—</div><div class="metric-label">⚡ 延迟 Latency</div></div>
+    <div class="metric-item"><div class="metric-value" id="mEfficacy">—</div><div class="metric-label">🎯 效能 Efficacy</div></div>
+    <div class="metric-item"><div class="metric-value" id="mAssurance">—</div><div class="metric-label">🛡️ 保证 Assurance</div></div>
+    <div class="metric-item"><div class="metric-value" id="mReliability">—</div><div class="metric-label">📈 可靠性 Reliability</div></div>
+  </div>
+
+  <!-- 三栏主体 -->
+  <div class="orch-grid">
+    <!-- 左栏：任务拆解树 -->
+    <div class="orch-card tree-box">
+      <div class="orch-card-header">🌲 任务拆解树 <span id="treeCount" style="font-weight:400;color:var(--text-muted)">0 节点</span></div>
+      <div class="orch-card-body" id="treeChart" style="height:380px;"></div>
+    </div>
+
+    <!-- 中栏：实时日志流水 -->
+    <div class="orch-card" style="overflow:hidden;">
+      <div class="orch-card-header">
+        📋 审计流水日志
+        <span style="font-weight:400;color:var(--text-muted);font-size:12px;" id="logCount">0 条</span>
+      </div>
+      <div class="log-panel" id="logPanel">
+        <div class="log-entry log-info">
+          <span class="log-time">[{{ now|default('--:--:--') }}]</span>
+          <span class="log-icon">ℹ️</span>
+          <span class="log-msg">Orchestrator 就绪，等待任务...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：CLEAR 雷达图 -->
+    <div class="orch-card">
+      <div class="orch-card-header">📊 CLEAR 评估</div>
+      <div class="orch-card-body chart-box" id="radarChart"></div>
+    </div>
+  </div>
+
+  <!-- Tab 页签：子 Agent 页面 -->
+  <div class="orch-tabs">
+    <button class="orch-tab active" onclick="switchOrchTab('tabOrch',this)">🎛️ 总控台</button>
+    <button class="orch-tab" onclick="switchOrchTab('tabWorkflow',this)">⚙️ 工作流</button>
+    <button class="orch-tab" onclick="switchOrchTab('tabRag',this)">💬 智能问答</button>
+    <button class="orch-tab" onclick="switchOrchTab('tabSearch',this)">🔍 搜索</button>
+  </div>
+  <div id="tabOrch" class="tab-pane active"></div>
+  <div id="tabWorkflow" class="tab-pane">{% include "workflow.html" ignore missing %}</div>
+  <div id="tabRag" class="tab-pane">{% include "chat.html" ignore missing %}</div>
+  <div id="tabSearch" class="tab-pane">{% include "result.html" ignore missing %}</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  let treeChart, radarChart;
+  let workflowId = null;
+  let taskNodes = [];
+  let logCount = 0;
+
+  const taskInput = document.getElementById('taskInput');
+  const wfStatus = document.getElementById('wfStatus');
+  const logPanel = document.getElementById('logPanel');
+  const logCountEl = document.getElementById('logCount');
+
+  // ── 初始化 ECharts ──
+  treeChart = echarts.init(document.getElementById('treeChart'));
+  radarChart = echarts.init(document.getElementById('radarChart'));
+  radarChart.setOption(createRadarOption());
+
+  // ── SSE 连接 ──
+  const evtSource = new EventSource('/stream');
+  evtSource.addEventListener('connected', () => addLog('info', 'ℹ️', 'SSE 实时通道已建立'));
+  evtSource.onerror = () => addLog('warn', '⚠️', 'SSE 连接中断，浏览器将自动重连...');
+
+  evtSource.addEventListener('workflow_created', e => {
+    const d = JSON.parse(e.data);
+    workflowId = d.id;
+    wfStatus.textContent = `📋 ${d.id}`;
+    addLog('info', '📋', `工作流创建: ${d.request.substring(0, 50)}`);
+  });
+  evtSource.addEventListener('memory_recall', e => {
+    const d = JSON.parse(e.data);
+    addLog('info', '🧠', `情景记忆唤醒: ${(d.hits || '').substring(0, 60)}`);
+  });
+  evtSource.addEventListener('task_tree_updated', e => {
+    const d = JSON.parse(e.data);
+    taskNodes = d.tasks;
+    document.getElementById('treeCount').textContent = `${d.tasks.length} 节点`;
+    renderTree(d.tasks);
+    // 解码动效：任务名称逐一出现
+    d.tasks.forEach((t, i) => {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-node-id="${t.id}"] .node-name`);
+        if (el) decodeText(el, t.name, 500);
+      }, i * 200);
+    });
+    addLog('success', '🌲', `任务拆解完成: ${d.tasks.length} 个节点`);
+  });
+  evtSource.addEventListener('task_status', e => {
+    const t = JSON.parse(e.data);
+    // 同步任务树数据
+    const idx = taskNodes.findIndex(n => n.id === t.id);
+    if (idx >= 0) taskNodes[idx] = t; else taskNodes.push(t);
+    const icons = {done:'✅',running:'▶️',failed:'❌',pending:'⏳',degraded:'⚠️'};
+    const level = t.status === 'done' ? 'success' : t.status === 'failed' ? 'error' : t.status === 'degraded' ? 'warn' : 'info';
+    const via = t.result && t.result.includes('local_mock') ? ' (本地降级)' : '';
+    const msg = `[${t.agent}] ${t.name} → ${t.status}${t.error ? ' (' + t.error + ')' : ''}${via}`;
+    addLog(level, icons[t.status] || '⏳', msg);
+    if (t.status === 'failed' || t.status === 'degraded') {
+      const el = document.querySelector(`[data-node-id="${t.id}"] .node-name`);
+      if (el) decodeText(el, `⚠️ ${t.name} (${t.status})`, 400);
+    }
+    updateMetrics();
+  });
+  evtSource.addEventListener('workflow_status', e => {
+    const d = JSON.parse(e.data);
+    if (d.status === 'decomposing') {
+      wfStatus.textContent = '⏳ 拆解中…';
+    } else if (d.status === 'running') {
+      wfStatus.textContent = '▶️ 执行中…';
+    } else if (d.status === 'completed') {
+      wfStatus.textContent = '✅ 已完成';
+      addLog('success', '🏁', `工作流完成！`);
+      if (d.final_state) { taskNodes = d.final_state; renderTree(d.final_state); }
+      showClearReport(d.clear_scores);
+    }
+  });
+
+  // ── 日志 ──
+  function addLog(level, icon, msg) {
+    const entry = createLogEntry(level, icon, msg);
+    logPanel.insertBefore(entry, logPanel.firstChild);
+    logCount++;
+    logCountEl.textContent = `${logCount} 条`;
+    if (logPanel.children.length > 200) logPanel.removeChild(logPanel.lastChild);
+  }
+
+  // ── 开始工作流（Supervisor HTTP API，事件经 SSE 回流）──
+  window.startWorkflow = async function() {
+    const input = taskInput.value.trim() || '审计 data/demo/contracts 目录下所有合同的合规性';
+    wfStatus.textContent = '⏳ 提交中…';
+    addLog('info', '🚀', `提交任务: ${input.substring(0, 60)}`);
+
+    try {
+      const r = await fetch('/api/workflows', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({request: input}),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      workflowId = data.id;
+      addLog('success', '📩', `Supervisor 已受理: ${data.id}`);
+    } catch (e) {
+      wfStatus.textContent = '❌ 提交失败';
+      addLog('error', '❌', `工作流提交失败: ${e.message}`);
+    }
+  };
+
+  // ── 故障注入（调用 Supervisor API）──
+  window.injectFault = async function() {
+    if (!workflowId) {
+      addLog('warn', '⚠️', '请先启动一个工作流');
+      return;
+    }
+    const running = taskNodes.filter(t => t.status === 'running' || t.status === 'pending');
+    if (running.length === 0) {
+      addLog('warn', '⚠️', '没有运行中/等待中的任务节点可供故障注入');
+      return;
+    }
+    const target = running[0];
+    try {
+      const r = await fetch(`/api/workflows/${workflowId}/inject-failure`, {
+        method: 'POST', credentials: 'same-origin',
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      addLog('error', '💥', `故障注入: ${target.name} Worker 模拟宕机！(任务 ${data.injected})`);
+    } catch (e) {
+      addLog('error', '❌', `故障注入失败: ${e.message}`);
+    }
+  };
+
+  // ── A2A 服务发现（展示各 Worker 的 AgentCard）──
+  window.showAgentCards = async function() {
+    addLog('info', '🌐', '正在执行 A2A 服务发现...');
+    try {
+      const r = await fetch('/api/agents/cards', {credentials: 'same-origin'});
+      const data = await r.json();
+      (data.agents || []).forEach(a => {
+        if (a.status === 'online') {
+          addLog('success', '🤖', `${a.name} v${a.version} 在线 — 工具: ${(a.tools || []).map(t => t.name).join(', ')}`);
+        } else {
+          addLog('warn', '💤', `${a.name} 离线（${a.endpoint}）`);
+        }
+      });
+    } catch (e) {
+      addLog('error', '❌', `服务发现失败: ${e.message}`);
+    }
+  };
+
+  // ── 渲染任务树 ──
+  function renderTree(tasks) {
+    const roots = tasks.filter(t => !t.depends_on || t.depends_on.length === 0);
+    const data = { name: '审计任务', children: roots.map(t => buildNode(t, tasks)) };
+    treeChart.setOption({
+      tooltip: { trigger: 'item', formatter: p => `${p.name}<br/>状态: ${p.value}` },
+      series: [{
+        type: 'tree',
+        data: [data],
+        top: '5%', left: '10%', bottom: '5%', right: '20%',
+        symbolSize: 8,
+        label: { position: 'left', verticalAlign: 'middle', fontSize: 11, color: '#1e293b' },
+        leaves: { label: { position: 'right' } },
+        expandAndCollapse: false,
+        animationDuration: 400,
+        lineStyle: { color: '#e2e8f0', width: 1.5 },
+        itemStyle: { color: '#6366f1' },
+      }]
+    });
+  }
+
+  function buildNode(node, all) {
+    const sm = {done:'✅ 完成', running:'▶️ 运行中', failed:'❌ 失败', pending:'⏳ 等待', degraded:'⚠️ 降级'};
+    const children = all.filter(t => (t.depends_on || []).includes(node.id));
+    return {
+      name: `${node.name} [${sm[node.status] || node.status}]`,
+      value: node.status,
+      children: children.length ? children.map(c => buildNode(c, all)) : undefined,
+      itemStyle: node.status === 'done' ? {color:'#10b981'} : node.status === 'failed' ? {color:'#ef4444'} : undefined,
+    };
+  }
+
+  // ── 更新指标（由真实任务状态推导，无随机数）──
+  function updateMetrics() {
+    const done = taskNodes.filter(t => t.status === 'done').length;
+    const failed = taskNodes.filter(t => t.status === 'failed').length;
+    const total = taskNodes.length || 1;
+    document.getElementById('mCost').textContent = Math.max(0, 100 - total * 8);
+    document.getElementById('mEfficacy').textContent = Math.round(done / total * 100);
+    document.getElementById('mLatency').textContent = '—';
+    document.getElementById('mAssurance').textContent = failed > 0 ? Math.max(30, 100 - failed * 25) : 100;
+    document.getElementById('mReliability').textContent = Math.round(done / total * 100);
+  }
+
+  // ── CLEAR 报告（优先使用后端真实评分）──
+  function showClearReport(scores) {
+    const done = taskNodes.filter(t => t.status === 'done').length;
+    const total = taskNodes.length || 1;
+    const values = scores
+      ? [scores.cost, scores.latency, scores.efficacy, scores.assurance, scores.reliability]
+      : [Math.max(0, 100 - total * 5), 80, Math.round(done / total * 100), 85, Math.round(done / total * 100)];
+    document.getElementById('mCost').textContent = values[0];
+    document.getElementById('mLatency').textContent = values[1];
+    document.getElementById('mEfficacy').textContent = values[2];
+    document.getElementById('mAssurance').textContent = values[3];
+    document.getElementById('mReliability').textContent = values[4];
+    radarChart.setOption(createRadarOption(values, '本次 CLEAR 评估'));
+    addLog('cost', '📊', `CLEAR 评估: ${done}/${total} 任务成功`);
+  }
+
+  // ── Tab 切换 ──
+  window.switchOrchTab = function(tabId, btn) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.orch-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+    setTimeout(() => { treeChart?.resize(); radarChart?.resize(); }, 100);
+  };
+
+  // ── 窗口 Resize ──
+  window.addEventListener('resize', () => { treeChart?.resize(); radarChart?.resize(); });
+
+  // ── 初始欢迎日志 ──
+  addLog('cost', '🎯', 'Dashboard 加载完成 | 设计: Light SaaS | 字体: Inter + JetBrains Mono');
+  addLog('info', 'ℹ️', '输入审计任务→点击「开始审计」→实时查看拆解树/日志/评估');
+  addLog('info', '💡', '提示: 执行中点击「注入故障」可演示 Worker 自愈降级；「服务发现」展示 A2A 协议');
+})();
+</script>
+{% endblock %}

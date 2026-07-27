@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">📊 用户中心</h2>
+    <p style="color: var(--text-secondary); font-size: 14px;">你的使用统计和对话记录</p>
+</div>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap;">
+    <!-- 用户信息 -->
+    <div style="flex: 1; min-width: 260px;">
+        <div class="card">
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--primary-gradient); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;">
+                    {{ (user.get('display_name') or user.get('username', 'U'))[0] }}
+                </div>
+                <div>
+                    <h3>{{ user.get('display_name') or user.get('username', '未知') }}</h3>
+                    <p style="color: var(--text-muted); font-size: 13px;">{{ user.get('email', '') }}</p>
+                    <p style="color: var(--text-muted); font-size: 12px;">注册于 {{ user.get('created_at', '未知') }}</p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <a href="/" class="btn btn-sm">🏠 返回主页</a>
+                <a href="/logout" class="btn btn-outline btn-sm">退出登录</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计 -->
+    <div style="flex: 2; min-width: 300px;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_conversations }}</div>
+                <div class="stat-label">💬 对话</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_messages }}</div>
+                <div class="stat-label">📝 消息</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${{ "%.4f"|format(stats.total_token_cost) }}</div>
+                <div class="stat-label">💰 Token 成本</div>
+            </div>
+        </div>
+
+        <!-- 最近对话 -->
+        <div class="history-panel">
+            <h3>📋 最近对话</h3>
+            {% if conversations %}
+            <ul class="history-list">
+                {% for conv in conversations %}
+                <li onclick="location.href='/agent/chat?conv={{ conv.id }}'" style="cursor:pointer;">
+                    <span>{{ conv.title[:40] }}{{ "…" if conv.title|length > 40 }}</span>
+                    <span class="h-time">{{ conv.updated_at.strftime('%m-%d %H:%M') }} · {{ conv.message_count }} 条</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty" style="padding: 32px;">暂无对话记录</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

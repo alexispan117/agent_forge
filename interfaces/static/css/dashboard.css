@@ -1,0 +1,232 @@
+/* ═══════════════════════════════════════════
+   dashboard.css — AgentForge 企业仪表盘设计系统
+   主题：Light / Clean SaaS（白底）
+   主色：#6366f1 Indigo
+   ═══════════════════════════════════════════ */
+
+/* ── Font-Face ── */
+@font-face {
+  font-family: 'Inter';
+  src: url('/static/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/static/fonts/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/static/fonts/Inter-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/static/fonts/JetBrainsMono-Regular.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/static/fonts/JetBrainsMono-Bold.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ── Design Tokens ── */
+:root {
+  --color-primary: #6366f1;
+  --color-primary-light: #eef2ff;
+  --color-primary-dark: #4f46e5;
+  --color-success: #10b981;
+  --color-success-light: #ecfdf5;
+  --color-danger: #ef4444;
+  --color-danger-light: #fef2f2;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fffbeb;
+  --color-info: #3b82f6;
+  --color-cost: #10b981;
+
+  --bg-page: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-log: #fafbfc;
+  --bg-input: #f8fafc;
+
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font-sans: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+
+  --sidebar-width: 320px;
+  --rightbar-width: 280px;
+}
+
+/* ── Layout ── */
+.orchestrator-body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.orch-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.orch-header {
+  margin-bottom: 20px;
+}
+.orch-header h2 {
+  font-size: 22px; font-weight: 700; color: var(--text);
+  margin: 0 0 4px 0;
+}
+.orch-header p {
+  font-size: 14px; color: var(--text-secondary);
+  margin: 0;
+}
+
+.orch-grid {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--rightbar-width);
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Cards ── */
+.orch-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.orch-card-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.orch-card-body {
+  padding: 16px;
+}
+
+/* ── Control Bar ── */
+.orch-controls {
+  display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;
+}
+.orch-controls .input {
+  flex: 1; min-width: 280px;
+  background: var(--bg-card); border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  font-family: var(--font-sans); font-size: 14px; color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.orch-controls .input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+.orch-controls .btn-primary {
+  background: var(--color-primary); color: #fff; border: none;
+  padding: 10px 22px; border-radius: var(--radius-sm);
+  font-family: var(--font-sans); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s, transform 0.15s;
+}
+.orch-controls .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.orch-controls .btn-ghost {
+  background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border); padding: 10px 16px;
+  border-radius: var(--radius-sm); font-size: 14px; cursor: pointer;
+  transition: background 0.15s;
+}
+.orch-controls .btn-ghost:hover { background: var(--bg-page); }
+.orch-status { font-size: 13px; color: var(--text-muted); }
+
+/* ── Metrics Row ── */
+.orch-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px; margin-bottom: 16px;
+}
+.metric-item {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.metric-value {
+  font-size: 26px; font-weight: 700; color: var(--color-primary);
+  font-family: var(--font-mono);
+}
+.metric-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── Task Tree (左栏) ── */
+.tree-box { height: 420px; }
+.tree-box .orch-card-body { padding: 8px; }
+
+/* ── Log Panel (中栏) ── */
+.log-panel {
+  background: var(--bg-log);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 500px; overflow-y: auto;
+  font-family: var(--font-mono); font-size: 13px;
+  line-height: 1.6;
+}
+.log-entry {
+  padding: 6px 14px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border-light);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.log-entry:hover { background: rgba(0,0,0,0.02); }
+.log-entry.log-info { border-left-color: var(--color-info); }
+.log-entry.log-success { border-left-color: var(--color-success); }
+.log-entry.log-warn { border-left-color: var(--color-warning); }
+.log-entry.log-error { border-left-color: var(--color-danger); }
+.log-entry.log-cost { border-left-color: var(--color-cost); }
+.log-time { color: var(--text-muted); font-size: 11px; flex-shrink: 0; width: 70px; }
+.log-icon { flex-shrink: 0; width: 20px; text-align: center; }
+.log-msg { color: var(--text); word-break: break-word; }
+
+/* ── Charts (右栏) ── */
+.chart-box { height: 260px; }
+
+/* ── Responsive ── */
+@media (max-width: 1399px) {
+  .orch-grid { grid-template-columns: 1fr var(--rightbar-width); }
+}
+@media (max-width: 899px) {
+  .orch-grid { grid-template-columns: 1fr; }
+  .orch-metrics { grid-template-columns: repeat(3, 1fr); }
+  .metric-value { font-size: 20px; }
+}
+@media (max-width: 599px) {
+  .orch-metrics { grid-template-columns: repeat(2, 1fr); }
+  .orch-container { padding: 12px; }
+}
+
+/* ── Decode Animation ── */
+.decode-char { display: inline-block; transition: color 0.15s; }
+.decode-active { color: var(--color-primary); }
+
+/* ── Tab Bar ── */
+.orch-tabs {
+  display: flex; gap: 0; margin-top: 20px;
+  border-bottom: 2px solid var(--border);
+}
+.orch-tab {
+  padding: 10px 20px; cursor: pointer; border: none; background: none;
+  font-family: var(--font-sans); font-size: 14px; color: var(--text-muted);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.orch-tab:hover { color: var(--text-secondary); }
+.orch-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }

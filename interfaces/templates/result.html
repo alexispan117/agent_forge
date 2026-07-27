@@ -1,0 +1,46 @@
+<div id="search-results">
+<nav style="margin-bottom:16px; font-size:14px;">
+    <a href="/agent/{{ agent_name }}">← 返回搜索</a>
+</nav>
+
+{% if result.error %}
+<div class="summary-box" style="border-color:#f85149; background:#3d1111;">
+    <h3 style="color:#f85149;">❌ 出错了</h3>
+    <p>{{ result.error }}</p>
+</div>
+
+{% elif result.results and result.results|length > 0 %}
+
+    <div class="toolbar">
+        <h2 style="font-size:18px; font-weight:600; display:inline;">
+            搜索结果: <span style="color:#58a6ff;">{{ query }}</span>
+        </h2>
+        {% if result.cached %}
+        <span class="badge badge-cache">⚡ 缓存</span>
+        {% endif %}
+    </div>
+
+    <div class="meta">
+        共 {{ result.total }} 条结果 · 
+        来源: {{ result.engine | upper }}
+    </div>
+
+    {% if result.summary %}
+    <div class="summary-box">
+        <h3>📝 AI 整理摘要</h3>
+        <div style="line-height:1.8; font-size:14px; white-space:pre-wrap;">{{ result.summary }}</div>
+    </div>
+    {% endif %}
+
+    {% for r in result.results %}
+    <div class="result-item">
+        <h4><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a></h4>
+        <div class="url">{{ r.url }}</div>
+        <div class="snippet">{{ r.snippet }}</div>
+    </div>
+    {% endfor %}
+
+{% else %}
+<div class="empty">😕 未找到相关结果，换个关键词试试</div>
+{% endif %}
+</div>

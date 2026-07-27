@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+
+<nav style="margin-bottom:20px; font-size:14px;">
+    <a href="/">← 返回首页</a>
+</nav>
+
+<h2 style="font-size:20px; font-weight:600; margin-bottom:4px;">
+    🔍 {{ agent.description.split('——')[0] if '——' in agent.description else agent.name }}
+</h2>
+<p style="color:#656d76; font-size:14px; margin-bottom:20px;">{{ agent.description }}</p>
+
+<!-- 搜索表单 -->
+<form class="search-form" id="searchForm" action="/agent/{{ agent.name }}/run" method="post" target="result-frame">
+    <input class="input" id="queryInput" type="text" name="query" placeholder="输入搜索关键词…" required>
+    <button class="btn" id="searchBtn" type="submit">🔍 搜索</button>
+</form>
+
+<!-- 搜索选项 -->
+<div class="search-options">
+    <label>搜索引擎:
+        <select name="engine" form="searchForm">
+            <option value="" {% if config.get('engine') != 'duckduckgo' %}selected{% endif %}>默认 ({{ '百度 AI 搜索' if config.get('engine') == 'baidu' else 'DuckDuckGo' }})</option>
+            <option value="baidu">百度 AI 搜索</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+        </select>
+    </label>
+    <label>结果数:
+        <input type="number" name="max_results" form="searchForm" value="5" min="3" max="20">
+    </label>
+    <label>时间:
+        <select name="recency" form="searchForm">
+            <option value="">不限</option>
+            <option value="day">一天内</option>
+            <option value="week">一周内</option>
+            <option value="month">一个月内</option>
+            <option value="year" selected>一年内</option>
+        </select>
+    </label>
+</div>
+
+<!-- 加载动画 -->
+<div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>正在搜索… 请稍候</p>
+</div>
+
+<!-- 结果区域 -->
+<div class="content-area" id="resultArea">
+    <div id="resultContent"></div>
+</div>
+
+<!-- 搜索结果 iframe（隐藏，用于接收 POST 响应） -->
+<iframe name="result-frame" id="resultFrame" style="display:none;"></iframe>
+
+<!-- 搜索历史 -->
+<div class="history-panel" id="historyPanel">
+    <h3>
+        📋 搜索历史
+        <button onclick="clearHistory()">清空</button>
+    </h3>
+    <ul class="history-list" id="historyList"></ul>
+</div>
+
+<script>
+// ── 搜索历史（localStorage）──
+const HISTORY_KEY = 'agentforge_search_history';
+const MAX_HISTORY = 20;
+
+function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch { return []; }
+}
+
+function saveHistoryItem(query, engine) {
+    const h = getHistory();
+    // 去重（相同的放最前面）
+    const filtered = h.filter(item => item.query !== query);
+    filtered.unshift({ query, engine, time: new Date().toLocaleString() });
+    if (filtered.length > MAX_HISTORY) filtered.length = MAX_HISTORY;
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered));
+    renderHistory();
+}
+
+function clearHistory() {
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistory();
+}
+
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    const h = getHistory();
+    if (h.length === 0) {
+        list.innerHTML = '<li style="color:#8c959f; cursor:default; justify-content:center;">暂无搜索记录</li>';
+        return;
+    }
+    list.innerHTML = h.map(item =>
+        `<li onclick="searchAgain('${item.query.replace(/'/g, "\\'")}')">
+            <span>🔍 ${item.query.length > 30 ? item.query.slice(0, 30) + '…' : item.query}</span>
+            <span class="h-time">${item.time}</span>
+        </li>`
+    ).join('');
+}
+
+function searchAgain(query) {
+    document.getElementById('queryInput').value = query;
+    document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+}
+
+// ── 表单提交：显示加载 → POST → 显示结果 ──
+document.getElementById('searchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const form = e.target;
+    const query = form.querySelector('[name="query"]').value.trim();
+    if (!query) return;
+
+    const btn = document.getElementById('searchBtn');
+    const loading = document.getElementById('loading');
+    const resultArea = document.getElementById('resultArea');
+    const resultContent = document.getElementById('resultContent');
+
+    // 显示加载
+    btn.disabled = true;
+    btn.textContent = '⏳ 搜索中…';
+    loading.classList.add('active');
+    resultArea.classList.remove('active');
+
+    // 收集表单数据
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+
+    try {
+        const res = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString(),
+        });
+        const html = await res.text();
+
+        // 提取返回内容
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        // 优先找 #search-results（片段），否则找 main .container（完整页）
+        const bodyContent = doc.querySelector('#search-results') || doc.querySelector('main .container');
+        
+        if (bodyContent) {
+            resultContent.innerHTML = bodyContent.innerHTML;
+        } else {
+            resultContent.innerHTML = '<div class="empty">⚠️ 返回内容异常</div>';
+        }
+
+        // 保存历史
+        saveHistoryItem(query, formData.get('engine') || '默认');
+
+    } catch (err) {
+        resultContent.innerHTML = `<div class="empty" style="color:#f85149;">❌ 请求失败: ${err.message}</div>`;
+    }
+
+    // 隐藏加载，显示结果
+    loading.classList.remove('active');
+    resultArea.classList.add('active');
+    btn.disabled = false;
+    btn.textContent = '🔍 搜索';
+
+    // 滚动到结果
+    resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// 初始化
+renderHistory();
+</script>
+
+{% endblock %}

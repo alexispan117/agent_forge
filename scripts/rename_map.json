@@ -1,0 +1,71 @@
+{
+  "_version": "1.0",
+  "_description": "企业级架构重命名映射表 — 从技术实现命名升级为企业架构命名",
+  "_note": "只改文件路径和类名，不改变产品的展示名称（如 orchestrator.html 保留）",
+
+  "directory_mappings": {
+    "agents":                     "runtimes",
+    "workflow":                   "orchestration",
+    "context":                    "memory",
+    "infra":                      "infrastructure",
+    "tools":                      "toolkit",
+    "evaluation":                 "orchestration/assessors",
+    "web":                        "interfaces",
+    "db":                         "infrastructure/persistence",
+    "prompts":                    "memory/prompts"
+  },
+
+  "file_renames": {
+    "runtimes/base.py":                "runtimes/base_runtime.py",
+    "runtimes/search_agent.py":        "runtimes/searcher.py",
+    "runtimes/rag_agent.py":           "runtimes/knowledge_bot.py",
+    "runtimes/workflow_agent.py":      "runtimes/orchestrator_runtime.py",
+    "orchestration/engine.py":         "orchestration/react_engine.py",
+    "orchestration/models.py":         "orchestration/state_models.py",
+    "orchestration/orchestrator.py":   "orchestration/supervisor.py",
+    "orchestration/sandbox.py":        "orchestration/sandbox.py",
+    "orchestration/schema.py":         "orchestration/tool_schema.py",
+    "memory/chat_history.py":          "memory/short_term.py",
+    "memory/long_term_memory.py":      "memory/episodic.py",
+    "memory/compressor.py":            "memory/context_compressor.py",
+    "memory/prompt_builder.py":        "memory/prompt_builder.py",
+    "memory/emb_config.py":            "memory/embedding_config.py",
+    "memory/rerank.py":                "memory/reranker.py",
+    "memory/workspace.py":             "memory/workspace.py",
+    "memory/prompts/rag_prompt.py":    "memory/prompts/knowledge_prompt.py",
+    "infrastructure/persistence/database.py": "infrastructure/persistence/database.py",
+    "infrastructure/persistence/models.py":   "infrastructure/persistence/orm_models.py",
+    "orchestration/assessors/metrics.py": "orchestration/assessors/clear_scorer.py"
+  },
+
+  "class_renames": {
+    "BaseAgent":              "BaseRuntime",
+    "SearchAgent":            "Searcher",
+    "RAGAgent":               "KnowledgeBot",
+    "WorkflowAgent":          "OrchestratorRuntime",
+    "SupervisorOrchestrator": "Supervisor",
+    "ChatHistory":            "ShortTermMemory",
+    "LongTermMemory":         "EpisodicMemory",
+    "ContextCompressor":      "ContextCompressor",
+    "MetricsTracker":         "CLEARScorer"
+  },
+
+  "file_rename_justifications": {
+    "base.py→base_runtime.py":           "体现'运行时'概念，区别于普通的基类",
+    "search_agent.py→searcher.py":       "去掉_agent后缀，突出'搜索服务'定位",
+    "rag_agent.py→knowledge_bot.py":     "RAG是内部技术，对外用'知识机器人'更直观",
+    "workflow_agent.py→orchestrator_runtime.py": "从工作流升级为编排运行时",
+    "engine.py→react_engine.py":         "明确标识ReAct引擎，区别于通用engine",
+    "orchestrator.py→supervisor.py":     "呼应Supervisor-Worker架构模式",
+    "chat_history.py→short_term.py":     "纳入记忆体系：短期记忆",
+    "long_term_memory.py→episodic.py":   "纳入记忆体系：情景记忆",
+    "metrics.py→clear_scorer.py":        "明确CLEAR评估维度"
+  },
+
+  "do_not_rename": [
+    "config.yaml", "Dockerfile", "docker-compose.yml",
+    "requirements.txt", "README.md", ".env.example",
+    "main.py", "data/", "docs/",
+    "web/templates/orchestrator.html"
+  ]
+}

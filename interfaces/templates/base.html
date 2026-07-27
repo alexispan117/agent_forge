@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} — AgentForge</title>
+    {% block head_extra %}{% endblock %}
+    <style>
+        /* ═══════════════════════════════════════
+           百应设计系统 - AgentForge
+           主色: #1E5EFF / 背景: #F5F7FA
+           ═══════════════════════════════════════ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        :root {
+            --primary: #1E5EFF;
+            --primary-dark: #0040CC;
+            --primary-light: #E8F0FF;
+            --primary-gradient: linear-gradient(135deg, #1E5EFF, #7C5CFC);
+            --bg: #F5F7FA;
+            --bg-white: #ffffff;
+            --border: #E8ECF1;
+            --border-light: #F0F2F5;
+            --text: #1A2332;
+            --text-secondary: #5A6678;
+            --text-muted: #8B95A5;
+            --shadow-sm: 0 1px 3px rgba(0,30,80,.06);
+            --shadow-md: 0 2px 12px rgba(0,30,80,.08);
+            --shadow-lg: 0 4px 24px rgba(0,30,80,.12);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-lg: 16px;
+            --sidebar-width: 240px;
+            --header-height: 64px;
+            --success: #00C853;
+            --danger: #FF3B30;
+            --warning: #FF9500;
+        }
+
+        body {
+            font-family: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            display: flex;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { opacity: .85; }
+
+        /* ── 侧边栏 ── */
+        .sidebar {
+            width: var(--sidebar-width);
+            min-height: 100vh;
+            background: var(--bg-white);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            left: 0; top: 0;
+            z-index: 100;
+        }
+        .sidebar-brand {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .sidebar-brand h1 {
+            font-size: 20px; font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .sidebar-brand span {
+            color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;
+        }
+        .sidebar-nav {
+            flex: 1; padding: 12px 8px;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .sidebar-nav a {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            color: var(--text-secondary); font-size: 14px; font-weight: 500;
+            transition: all .15s;
+        }
+        .sidebar-nav a:hover {
+            background: var(--primary-light);
+            color: var(--primary); text-decoration: none;
+        }
+        .sidebar-nav a.active {
+            background: var(--primary-light);
+            color: var(--primary); font-weight: 600;
+        }
+        .sidebar-nav a .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+        .sidebar-footer {
+            padding: 16px 8px; border-top: 1px solid var(--border-light);
+        }
+        .sidebar-footer a {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            color: var(--text-muted); font-size: 13px;
+        }
+
+        /* ── 主内容区 ── */
+        .main-wrapper {
+            margin-left: var(--sidebar-width);
+            flex: 1; min-height: 100vh;
+            display: flex; flex-direction: column;
+        }
+        .topbar {
+            height: var(--header-height);
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: flex-end;
+            padding: 0 32px; gap: 16px;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar .user-info {
+            display: flex; align-items: center; gap: 10px; font-size: 14px;
+        }
+        .topbar .avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--primary-gradient);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 600;
+        }
+        .main-content {
+            flex: 1; padding: 32px;
+            max-width: 1200px; width: 100%; margin: 0 auto;
+        }
+
+        /* ── 卡片 ── */
+        .card {
+            background: var(--bg-white); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px;
+            transition: box-shadow .2s, transform .2s;
+        }
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+        .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+        .card p { color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
+
+        /* ── Agent 卡片（首页专用）── */
+        .agent-card {
+            background: var(--bg-white); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 28px;
+            transition: box-shadow .25s, transform .25s;
+            cursor: pointer; position: relative; overflow: hidden;
+        }
+        .agent-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+        .agent-card .icon-wrap {
+            width: 48px; height: 48px; border-radius: var(--radius);
+            background: var(--primary-gradient);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; margin-bottom: 16px;
+        }
+        .agent-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+        .agent-card p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
+        .agent-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+        .agent-card .tag {
+            background: var(--primary-light); color: var(--primary);
+            font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 500;
+        }
+
+        /* ── 按钮 ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--primary-gradient); color: #fff;
+            padding: 10px 24px; border: none; border-radius: var(--radius-sm);
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: opacity .2s, transform .15s;
+        }
+        .btn:hover { opacity: .92; transform: translateY(-1px); text-decoration: none; color: #fff; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+        .btn-outline {
+            background: transparent; color: var(--primary);
+            border: 1.5px solid var(--primary);
+        }
+        .btn-outline:hover { background: var(--primary-light); color: var(--primary-dark); }
+
+        .btn-ghost {
+            background: transparent; color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+        .btn-sm { padding: 6px 14px; font-size: 13px; }
+        .btn-lg { padding: 14px 32px; font-size: 16px; }
+
+        /* ── 输入 ── */
+        .input {
+            width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); padding: 10px 16px;
+            color: var(--text); font-size: 14px; outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,94,255,.12); }
+        .input::placeholder { color: var(--text-muted); }
+
+        /* ── 网格 ── */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px; margin-top: 24px;
+        }
+
+        /* ── 搜索相关 ── */
+        .search-form { display: flex; gap: 12px; }
+        .search-form .input { flex: 1; }
+        .search-options {
+            display: flex; gap: 16px; flex-wrap: wrap;
+            margin-top: 16px; align-items: center;
+        }
+        .search-options select, .search-options input[type="number"] {
+            background: var(--bg); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); color: var(--text);
+            padding: 8px 12px; font-size: 13px;
+        }
+        .search-options label { color: var(--text-secondary); font-size: 13px; }
+
+        /* ── 搜索结果 ── */
+        .result-item {
+            background: var(--bg-white); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px; margin-bottom: 12px;
+            animation: fadeInUp .3s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .result-item h4 { font-size: 15px; margin-bottom: 4px; }
+        .result-item .url { color: var(--primary); font-size: 13px; word-break: break-all; }
+        .result-item .snippet { color: var(--text-secondary); font-size: 14px; margin-top: 6px; }
+
+        .summary-box {
+            background: #E8F8F0; border: 1px solid #00C853;
+            border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+        }
+        .summary-box h3 { color: #00A84A; margin-bottom: 12px; }
+
+        .meta { color: var(--text-muted); font-size: 13px; margin: 4px 0 12px; }
+        .empty { color: var(--text-muted); text-align: center; padding: 64px 0; }
+
+        .badge {
+            display: inline-block; font-size: 12px; padding: 3px 10px;
+            border-radius: 20px; font-weight: 500;
+        }
+        .badge-ok { background: #E8F8F0; color: #00A84A; }
+        .badge-err { background: #FFF0EF; color: #FF3B30; }
+        .badge-cache { background: var(--primary-light); color: var(--primary); }
+
+        /* ── 加载 ── */
+        .loading { display: none; text-align: center; padding: 48px 0; }
+        .loading.active { display: block; }
+        .spinner {
+            display: inline-block; width: 36px; height: 36px;
+            border: 3px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading p { color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+
+        /* ── 历史面板 ── */
+        .history-panel {
+            background: var(--bg-white); border: 1px solid var(--border);
+            border-radius: var(--radius); overflow: hidden;
+        }
+        .history-panel h3 {
+            padding: 14px 20px; font-size: 14px; font-weight: 600;
+            background: var(--bg); border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .history-panel h3 button {
+            background: none; border: none; color: var(--text-muted);
+            font-size: 12px; cursor: pointer;
+        }
+        .history-panel h3 button:hover { color: var(--danger); }
+        .history-list { list-style: none; }
+        .history-list li {
+            padding: 12px 20px; border-bottom: 1px solid var(--border-light);
+            font-size: 14px; cursor: pointer; transition: background .15s;
+            display: flex; justify-content: space-between;
+        }
+        .history-list li:last-child { border-bottom: none; }
+        .history-list li:hover { background: var(--bg); }
+        .history-list .h-time { color: var(--text-muted); font-size: 12px; }
+
+        .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .content-area { display: none; }
+        .content-area.active { display: block; }
+
+        /* ── 统计卡片 ── */
+        .stat-card {
+            background: var(--bg-white); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px; text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 32px; font-weight: 700; background: var(--primary-gradient);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .stat-card .stat-label { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+
+        /* ── 分屏登录 ── */
+        .split-layout {
+            display: flex; min-height: calc(100vh - 64px);
+            margin: -32px;
+        }
+        .split-brand {
+            flex: 1; background: var(--primary-gradient);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 48px; color: #fff;
+        }
+        .split-brand h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+        .split-brand p { font-size: 16px; opacity: .85; max-width: 360px; text-align: center; line-height: 1.7; }
+        .split-form {
+            width: 440px; padding: 48px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .split-form h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .split-form .subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { color: var(--text-secondary); font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px; }
+
+        /* ── 聊天界面 ── */
+        .chat-container { max-width: 800px; margin: 0 auto; }
+        .chat-box {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); height: 520px; overflow-y: auto;
+            padding: 20px; margin-bottom: 16px;
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .msg {
+            max-width: 78%; padding: 12px 16px; border-radius: var(--radius);
+            font-size: 14px; line-height: 1.7; animation: fadeInUp .3s ease;
+        }
+        .msg.user {
+            align-self: flex-end; background: var(--primary); color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .msg.assistant {
+            align-self: flex-start; background: var(--bg-white); color: var(--text);
+            border: 1px solid var(--border); border-bottom-left-radius: 4px;
+        }
+        .msg.system {
+            align-self: center; background: transparent; color: var(--text-muted);
+            font-size: 12px; padding: 6px 12px; text-align: center;
+        }
+        .chat-input-row { display: flex; gap: 8px; }
+        .chat-input-row .input { flex: 1; }
+        .chat-status { color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 8px; }
+
+        /* ── 页脚 ── */
+        .main-footer {
+            border-top: 1px solid var(--border);
+            padding: 20px 32px; text-align: center;
+            color: var(--text-muted); font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 侧边栏 -->
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <h1>🤖 AgentForge</h1>
+        <span>AI Agent 工具箱</span>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">
+            <span class="nav-icon">🏠</span> 首页
+        </a>
+        <a href="/agent/search" class="{% if request.url.path == '/agent/search' %}active{% endif %}">
+            <span class="nav-icon">🔍</span> 搜索
+        </a>
+        <a href="/agent/chat" class="{% if request.url.path == '/agent/chat' %}active{% endif %}">
+            <span class="nav-icon">💬</span> 智能问答
+        </a>
+        <a href="/agent/workflow" class="{% if request.url.path == '/agent/workflow' %}active{% endif %}">
+            <span class="nav-icon">⚙️</span> 工作流
+        </a>
+        <a href="/complaints" class="{% if request.url.path == '/complaints' %}active{% endif %}">
+            <span class="nav-icon">📬</span> 客诉工单
+            <span style="margin-left:auto; font-size:10px; font-weight:600; color:#fff; background:linear-gradient(135deg,#1E5EFF,#7C5CFC); padding:2px 7px; border-radius:10px;">LangGraph</span>
+        </a>
+        <a href="/console" style="position:relative;">
+            <span class="nav-icon">🚀</span> 总控台
+            <span style="margin-left:auto; font-size:10px; font-weight:600; color:#fff; background:linear-gradient(135deg,#1E5EFF,#7C5CFC); padding:2px 7px; border-radius:10px;">NEW</span>
+        </a>
+        <a href="/orchestrator" class="{% if request.url.path == '/orchestrator' %}active{% endif %}">
+            <span class="nav-icon">🎛️</span> 总控台<span style="color:var(--text-muted); font-size:12px;">（旧版）</span>
+        </a>
+        <a href="/dashboard">
+            <span class="nav-icon">📊</span> 用户中心
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        {% if user %}
+        <a href="/logout">🚪 退出登录</a>
+        {% else %}
+        <a href="/login">🔐 登录 / 注册</a>
+        {% endif %}
+    </div>
+</aside>
+
+<!-- 主内容 -->
+<div class="main-wrapper">
+    <header class="topbar">
+        {% if user %}
+        <div class="user-info">
+            <div class="avatar">{{ user.display_name[0] if user.display_name else user.username[0] }}</div>
+            <span style="color:var(--text); font-weight:500;">{{ user.display_name or user.username }}</span>
+        </div>
+        {% else %}
+        <div style="display:flex; gap:8px;">
+            <a href="/login" class="btn btn-sm">登录</a>
+            <a href="/register" class="btn btn-outline btn-sm">注册</a>
+        </div>
+        {% endif %}
+    </header>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="main-footer">
+        AgentForge — AI Agent 工具箱
+    </footer>
+</div>
+
+</body>
+</html>

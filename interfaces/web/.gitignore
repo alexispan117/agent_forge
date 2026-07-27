@@ -1,0 +1,11 @@
+# 依赖目录
+node_modules/
+
+# Vite 默认缓存 / 本地覆盖
+.vite/
+*.local
+
+# 日志
+npm-debug.log*
+
+# 注意：构建产物输出在 ../static/spa（交付产物），不忽略

@@ -1,0 +1,23 @@
+{% extends "auth_base.html" %}
+{% block form_title %}📝 注册{% endblock %}
+{% block form_subtitle %}创建你的 AgentForge 账号{% endblock %}
+{% block form_content %}
+<form action="/register" method="post">
+    <div class="form-group">
+        <label for="username">用户名</label>
+        <input class="input" id="username" type="text" name="username" required autofocus>
+    </div>
+    <div class="form-group">
+        <label for="email">邮箱</label>
+        <input class="input" id="email" type="email" name="email" required>
+    </div>
+    <div class="form-group">
+        <label for="password">密码（至少 6 位）</label>
+        <input class="input" id="password" type="password" name="password" required minlength="6">
+    </div>
+    <button class="btn" type="submit">注册</button>
+</form>
+<div class="footer-link">
+    已有账号？<a href="/login">登录</a>
+</div>
+{% endblock %}

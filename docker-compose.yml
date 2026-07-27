@@ -1,0 +1,88 @@
+# docker-compose.yml — 多容器微服务编排
+# 演示环境配置（默认8GB内存/4核优化）
+version: "3.8"
+
+x-common: &common
+  build: .
+  image: agentforge:latest
+  env_file: .env
+  environment:
+    LLM_MOCK_MODE: "${LLM_MOCK_MODE:-true}"
+  volumes:
+    - .:/app  # 代码热加载（已覆盖 ./data）
+  networks:
+    - agentforge-net
+  restart: unless-stopped
+
+services:
+  # ── Supervior 总控节点 ──
+  supervisor:
+    <<: *common
+    ports:
+      - "8000:8000"
+    environment:
+      SERVICE_TYPE: supervisor
+      PORT: 8000
+      WORKER_ANALYST_URL: "http://worker-analyst:8001"
+      WORKER_DESENSITIZE_URL: "http://worker-desensitize:8002"
+      WORKER_REPORT_URL: "http://worker-report:8003"
+    command: python services/supervisor/main.py
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Worker-Analyst 分析节点 ──
+  worker-analyst:
+    <<: *common
+    ports:
+      - "8001:8001"
+    environment:
+      SERVICE_TYPE: analyst
+      PORT: 8001
+    command: python services/worker_analyst/main.py
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1"
+
+  # ── Worker-Desensitize 脱敏节点 ──
+  worker-desensitize:
+    <<: *common
+    ports:
+      - "8002:8002"
+    environment:
+      SERVICE_TYPE: desensitize
+      PORT: 8002
+    command: python services/worker_desensitize/main.py
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Worker-Report 报告节点 ──
+  worker-report:
+    <<: *common
+    ports:
+      - "8003:8003"
+    environment:
+      SERVICE_TYPE: report
+      PORT: 8003
+    command: python services/worker_report/main.py
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  agentforge-net:
+    driver: bridge

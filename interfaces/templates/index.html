@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="margin-bottom: 32px;">
+    <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 6px;">👋 欢迎回来</h2>
+    <p style="color: var(--text-secondary); font-size: 14px;">选择一个 Agent 开始你的工作</p>
+</div>
+
+{% if agents %}
+<div class="grid">
+    {% for name, agent in agents | dictsort %}
+    <a href="{% if name == 'complaint' %}/complaints{% else %}/agent/{{ name }}{% endif %}" style="color: inherit; text-decoration: none;">
+        <div class="agent-card">
+            <div class="icon-wrap">
+                {% if name == 'search' %}🔍{% elif name == 'chat' %}💬{% elif name == 'complaint' %}📬{% else %}🤖{% endif %}
+            </div>
+            <h3>{{ agent.description.split('——')[0] if '——' in agent.description else agent.name }}</h3>
+            <p>{{ agent.description }}</p>
+            <div class="tags">
+                {% for tag in agent.description.split('·') %}
+                <span class="tag">{{ tag.strip()[:20] }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">暂无可用 Agent</div>
+{% endif %}
+
+{% endblock %}

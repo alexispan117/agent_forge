@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+.workflow-container { max-width: 900px; margin: 0 auto; }
+.task-card { background: var(--bg-white); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.status-badge { font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 500; }
+.step-item { border-left: 3px solid var(--border); padding: 12px 16px; margin: 8px 0; }
+.step-item.done { border-left-color: var(--success); }
+.step-item.failed { border-left-color: var(--danger); }
+.step-item.running { border-left-color: var(--primary); }
+</style>
+
+<div class="workflow-container">
+    <div style="margin-bottom:24px;">
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:4px;">⚙️ 企业工作流</h2>
+        <p style="color:var(--text-secondary);font-size:14px;">{{ agent.description if agent is defined and agent else "LLM 规划 · 文件操作 · 代码执行 · 审批节点" }}</p>
+    </div>
+
+    <div class="task-card">
+        <h3 style="margin-bottom:12px;">📝 新建任务</h3>
+        <form id="taskForm" onsubmit="submitTask(event)">
+            <textarea class="input" id="taskInput" rows="3" placeholder="输入任务描述，如：&#10;列出 docs 目录下的文件&#10;读取中国平安年报的前200个字" style="resize:vertical;"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+                <button class="btn" type="submit">🚀 开始执行</button>
+                <span style="color:var(--text-muted);font-size:13px;">超时: <select id="timeoutSelect"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="30">30 分钟</option></select></span>
+            </div>
+        </form>
+    </div>
+
+    <div id="taskList"></div>
+</div>
+
+<script>
+async function submitTask(e) {
+    e.preventDefault();
+    const prompt = document.getElementById('taskInput').value.trim();
+    if (!prompt) return;
+    const timeout = document.getElementById('timeoutSelect').value;
+    const btn = e.target.querySelector('button[type="submit"]');
+    const origText = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳ 创建任务…';
+
+    try {
+        // 1. 创建任务（后台执行，立即返回 task_id）
+        const r = await fetch('/agent/workflow/run', {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({query: prompt, timeout}),
+        });
+        if (r.redirected) { location.href = r.url; return; }
+        const text = await r.text();
+        const m = text.match(/<div[^>]*id="workflow-result[^>]*>([\s\S]*?)<\/div>/);
+        if (!m) { btn.textContent = '❌ 创建失败'; btn.disabled = false; return; }
+        const created = JSON.parse(m[1]);
+        const taskId = created.task_id;
+        if (!taskId) { showResult(created); btn.textContent = origText; btn.disabled = false; return; }
+
+        document.getElementById('taskInput').value = '';
+
+        // 2. 实时日志面板
+        const logCard = document.createElement('div');
+        logCard.className = 'task-card';
+        logCard.id = 'live-' + taskId;
+        logCard.innerHTML = `<div class="task-header">
+            <span><strong>⏳ 任务</strong> ${taskId.substring(0,8)}</span>
+            <span class="status-badge" style="background:var(--primary);color:#fff;">执行中</span>
+        </div>
+        <div style="color:var(--text-secondary);font-size:13px;margin-bottom:8px;">${prompt.substring(0,60)}</div>
+        <div id="log-${taskId}" style="font-family:monospace;font-size:13px;max-height:500px;overflow-y:auto;"></div>`;
+        document.getElementById('taskList').prepend(logCard);
+        btn.textContent = '⏳ 执行中…';
+
+        // 3. 轮询状态
+        const poll = setInterval(async () => {
+            const r2 = await fetch('/agent/workflow/run', {
+                method:'POST', credentials:'same-origin',
+                headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({query:'status:' + taskId}),
+            });
+            const t = await r2.text();
+            const m2 = t.match(/<div[^>]*id="workflow-result[^>]*>([\s\S]*?)<\/div>/);
+            if (!m2) return;
+            const task = (JSON.parse(m2[1]).task || {});
+            const el = document.getElementById('log-' + taskId);
+            if (!el) { clearInterval(poll); return; }
+
+            // 构建实时日志 HTML
+            let html = '';
+            for (const s of (task.steps || [])) {
+                const statusMap = {done:'✅',failed:'❌',running:'▶️',pending:'⏳',retrying:'🔄'};
+                const icon = statusMap[s.status] || '⏳';
+                const bg = s.status==='done'?'#e8f5e9':s.status==='failed'?'#ffebee':'transparent';
+                const retryInfo = s.retries > 0 ? ` <span style="color:var(--warning);font-size:11px;">重试${s.retries}次</span>` : '';
+                html += `<div style="padding:8px 12px;border-bottom:1px solid var(--border-light);background:${bg};">
+                    <div><b>${icon} ${s.action}</b>${retryInfo}</div>`;
+                if (s.result && s.result!=='(无输出)' && s.status!=='pending')
+                    html += `<div style="color:var(--text-secondary);font-size:12px;margin-top:4px;padding-left:4px;white-space:pre-wrap;word-break:break-word;">${(s.result||'').substring(0,500)}</div>`;
+                html += '</div>';
+            }
+            if (!html) html = '<div style="color:var(--text-muted);padding:12px;">⏳ 等待执行…</div>';
+            btn.disabled = false; btn.textContent = origText;
+            if (task.status === 'AWAITING_APPROVAL') {
+                // 显示审批按钮
+                html += `<div style="margin-top:12px;display:flex;gap:8px;">
+                    <button class="btn" onclick="approveTask('${taskId}',1)">✅ 批准</button>
+                    <button class="btn" style="background:var(--danger);" onclick="approveTask('${taskId}',0)">❌ 拒绝</button>
+                </div>`;
+            }
+            el.innerHTML = html;
+
+            const done = task.status==='DONE'||task.status==='FAILED'||task.status==='TIMEOUT'||task.status==='CANCELLED';
+            if (done) {
+                clearInterval(poll);
+                const badge = document.querySelector('#live-'+taskId+' .status-badge');
+                if (badge) { badge.textContent = task.status; badge.style.background = task.status==='DONE'?'var(--success)':'var(--danger)'; }
+                btn.disabled = false; btn.textContent = origText;
+                // 刷新历史列表
+                setTimeout(() => location.reload(), 1500);
+            }
+        }, 600);
+    } catch(e) {
+        btn.textContent = '❌ 网络错误';
+        btn.disabled = false;
+    }
+}
+
+function showResult(data) {
+    const list = document.getElementById('taskList');
+    const ok = data.status === 'DONE';
+    const isError = !!data.error;
+    let html = `<div class="task-card">
+        <div class="task-header">
+            <span><strong>${ok?'✅':isError?'❌':'⏳'} 任务</strong> ${data.task_id||''}</span>
+            <span class="status-badge" style="background:${ok?'var(--success)':isError?'var(--danger)':'var(--warning)'};color:#fff;">${data.status}</span>
+        </div>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">${data.prompt||''}</p>
+        <div style="margin-bottom:12px;color:var(--text-muted);font-size:13px;">
+            ${data.steps_completed!=null?'步骤 '+data.steps_completed+'/'+data.steps:''}
+            ${data.latency_s?'· 耗时 '+data.latency_s+'s':''}
+        </div>`;
+    if (data.steps_detail && data.steps_detail.length) {
+        html += '<div style="border:1px solid var(--border-light);border-radius:var(--radius);">';
+        for (const s of data.steps_detail) {
+            const icon = s.status==='done'?'✅':s.status==='failed'?'❌':'⏳';
+            const bg = s.status==='done'?'#e8f5e9':s.status==='failed'?'#ffebee':'transparent';
+            const paral = s.depends_on && s.depends_on.length ? ` <span style="font-size:11px;color:var(--text-muted);">依赖: [${s.depends_on.join(',')}]</span>` : '';
+            html += `<div style="padding:12px;border-bottom:1px solid var(--border-light);background:${bg};">
+                <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:500;margin-bottom:4px;">
+                    <span>${icon} ${s.action}${paral}</span>
+                    <span style="color:var(--text-muted);font-size:12px;">${s.retries>0?s.retries+'次重试':''}</span>
+                </div>`;
+            if (s.result && s.result!=='(无输出)')
+                html += `<pre style="font-size:13px;margin:4px 0 0;padding:8px;background:var(--bg);border-radius:4px;white-space:pre-wrap;word-break:break-word;">${s.result}</pre>`;
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    if (data.error) html += `<div style="margin-top:12px;padding:8px;background:#ffebee;border-radius:var(--radius);color:var(--danger);">❌ ${data.error}</div>`;
+    html += '</div>';
+    list.innerHTML = html + list.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    const r = await fetch('/agent/workflow/run', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({query:'list'}),
+    });
+    if (r.redirected) return;
+    const text = await r.text();
+    const m = text.match(/<div[^>]*id="workflow-result[^>]*>([\s\S]*?)<\/div>/);
+    if (m) {
+        const data = JSON.parse(m[1]);
+        if (data.tasks && data.tasks.length) {
+            let h = '<div class="task-card"><h3 style="margin-bottom:12px;">📋 历史任务</h3>';
+            h += '<div style="margin-bottom:8px;display:flex;gap:8px;">';
+            h += '<span onclick="toggleManageMode()" id="manageBtn" class="btn-outline" style="cursor:pointer;font-size:13px;padding:6px 16px;">🔧 管理</span>';
+            h += '<span onclick="deleteSelected()" id="deleteSelectedBtn" class="btn" style="cursor:pointer;font-size:13px;padding:6px 16px;display:none;">🗑️ 删除选中</span>';
+            h += '</div><div id="historyList">';
+            for (const t of data.tasks.slice(0,20)) {
+                const cls = t.status==='DONE'?'done':t.status==='FAILED'?'failed':'';
+                h += `<div class="step-item ${cls}" style="display:flex;justify-content:space-between;align-items:center;" data-id="${t.id}">
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.prompt||'').substring(0,50)}</span>
+                    <span style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                        <input type="checkbox" class="del-cb" data-id="${t.id}" style="display:none;">
+                        <span class="status-badge">${t.status}</span>
+                        <span style="color:var(--text-muted);font-size:12px;min-width:40px;">${t.steps_completed||0}/${t.steps||0}步</span>
+                        <span onclick="viewTask('${t.id}')" class="btn" style="cursor:pointer;font-size:12px;padding:4px 12px;">📄 详情</span>
+                    </span>
+                </div>`;
+            }
+            h += '</div></div>';
+            document.getElementById('taskList').insertAdjacentHTML('afterbegin', h);
+        }
+    }
+});
+
+let manageMode = false;
+function toggleManageMode() {
+    manageMode = !manageMode;
+    document.querySelectorAll('.del-cb').forEach(cb => cb.style.display = manageMode ? '' : 'none');
+    document.getElementById('manageBtn').textContent = manageMode ? '🔧 退出管理' : '🔧 管理';
+    document.getElementById('deleteSelectedBtn').style.display = manageMode ? '' : 'none';
+}
+function deleteSelected() {
+    const ids = [...document.querySelectorAll('.del-cb:checked')].map(cb => cb.dataset.id);
+    if (!ids.length || !confirm('删除选中的 '+ids.length+' 个任务？')) return;
+    Promise.all(ids.map(id => fetch('/agent/workflow/run', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({query:'delete:'+id}),
+    }))).then(() => location.reload());
+}
+
+async function approveTask(id, granted) {
+    const r = await fetch('/agent/workflow/run', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({query:'approve:' + id + ':' + granted}),
+    });
+    location.reload();
+}
+
+async function viewTask(id) {
+    const r = await fetch('/agent/workflow/run', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({query:'status:'+id}),
+    });
+    const text = await r.text();
+    const m = text.match(/<div[^>]*id="workflow-result[^>]*>([\s\S]*?)<\/div>/);
+    if (m) {
+        const task = (JSON.parse(m[1]).task || {});
+        if (task.prompt) showResult({
+            task_id: task.id, status: task.status, prompt: task.prompt,
+            steps: (task.steps||[]).length, steps_completed: task.current_step||0,
+            steps_detail: (task.steps||[]).map(s=>({
+                idx:s.idx||0, action:s.action||'', status:s.status||'',
+                result:(s.result||'').substring(0,500), retries:s.retries||0,
+                depends_on: s.depends_on||[],
+            })),
+            error: task.error||'',
+        });
+    }
+}
+
+async function deleteTask(id) {
+    if (!confirm('删除任务 '+id.substring(0,8)+'...？')) return;
+    await fetch('/agent/workflow/run', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({query:'delete:'+id}),
+    });
+    location.reload();
+}
+</script>
+{% endblock %}

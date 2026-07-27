@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not user %}
+<div class="empty">🔐 请先<a href="/login">登录</a></div>
+{% else %}
+<style>
+/* ═══════ 客诉系统专用样式 ═══════ */
+:root {
+  --color-refund: #EF4444;
+  --color-complaint: #F59E0B;
+  --color-technical: #3B82F6;
+  --color-suggestion: #10B981;
+}
+.complaint-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px;
+}
+.complaint-header {
+  margin-bottom: 24px;
+}
+.complaint-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text, #1E293B);
+  margin: 0;
+}
+.complaint-header p {
+  color: var(--text-secondary, #64748B);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.complaint-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr 300px;
+  gap: 20px;
+  min-height: 600px;
+}
+@media (max-width: 1100px) {
+  .complaint-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 工单列表 ── */
+.ticket-list-panel {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ticket-list-panel h3 {
+  padding: 16px 20px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  color: #1E293B;
+}
+.ticket-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid #F1F5F9;
+  cursor: pointer;
+  transition: background .15s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ticket-item:hover { background: #F8FAFC; }
+.ticket-item.active { background: #EEF2FF; border-left: 3px solid #6366F1; }
+.ticket-item .ticket-id {
+  font-size: 12px;
+  color: #64748B;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+.ticket-item .ticket-customer {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E293B;
+}
+.ticket-item .ticket-meta {
+  font-size: 12px;
+  color: #94A3B8;
+  display: flex;
+  gap: 8px;
+}
+.ticket-item .priority-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.priority-high { background: #FEE2E2; color: #EF4444; }
+.priority-medium { background: #FEF3C7; color: #D9770E; }
+.priority-low, .priority-urgent { background: #DBEAFE; color: #2563EB; }
+
+/* ── 状态流转图 —— */
+.flow-panel {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 24px;
+}
+.flow-panel h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: #1E293B;
+}
+.flow-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.flow-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #F1F5F9;
+  border: 2px solid #E2E8F0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748B;
+  transition: all .3s;
+  min-width: 80px;
+  text-align: center;
+}
+.flow-node.active {
+  background: #6366F1;
+  border-color: #4F46E5;
+  color: #fff;
+  font-weight: 700;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px rgba(99,102,241,.2);
+}
+.flow-node.completed {
+  background: #D1FAE5;
+  border-color: #10B981;
+  color: #065F46;
+}
+.flow-node.error {
+  background: #FEE2E2;
+  border-color: #EF4444;
+  color: #991B1B;
+}
+.flow-arrow {
+  color: #94A3B8;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* ── 审批面板 ── */
+.approval-panel {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.approval-panel h3 {
+  padding: 16px 20px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  color: #1E293B;
+}
+.approval-body {
+  padding: 20px;
+}
+.approval-ticket {
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.approval-ticket .label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400E;
+  text-transform: uppercase;
+}
+.approval-ticket .value {
+  color: #78350F;
+  font-weight: 600;
+}
+.approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.approval-comment {
+  width: 100%;
+  padding: 10px;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  margin-bottom: 12px;
+  outline: none;
+  font-family: inherit;
+}
+.approval-comment:focus {
+  border-color: #6366F1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+}
+
+/* ── 实时日志 ── */
+.log-area {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 20px;
+}
+.log-entry {
+  padding: 6px 0;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  color: #334155;
+  border-left: 3px solid transparent;
+  padding-left: 10px;
+  margin-bottom: 4px;
+}
+.log-entry.info { border-left-color: #3B82F6; }
+.log-entry.success { border-left-color: #10B981; }
+.log-entry.warn { border-left-color: #F59E0B; }
+.log-entry.error { border-left-color: #EF4444; }
+
+/* ── 回复草稿 ── */
+.response-draft {
+  background: #F0FDF4;
+  border: 1px solid #86EFAC;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ── 按钮 ── */
+.btn-approve {
+  background: #10B981;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+  flex: 1;
+}
+.btn-approve:hover { background: #059669; }
+.btn-reject {
+  background: #FEE2E2;
+  color: #EF4444;
+  border: 1.5px solid #FCA5A5;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  flex: 1;
+}
+.btn-reject:hover { background: #FEE2E2; border-color: #EF4444; }
+.btn-start {
+  background: #6366F1;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-start:hover { background: #4F46E5; }
+.placeholder-text {
+  text-align: center;
+  color: #94A3B8;
+  padding: 32px 0;
+  font-size: 14px;
+}
+</style>
+
+<div class="complaint-container">
+  <div class="complaint-header">
+    <h1>📬 智能客诉工单自动化处理系统</h1>
+    <p>LangGraph StateGraph 驱动 · Human-in-the-Loop 人工审批 · 8 节点状态机</p>
+  </div>
+
+  <div class="complaint-grid">
+    <!-- 左：工单列表 -->
+    <div class="ticket-list-panel">
+      <h3>📋 待处理工单 ({{ tickets|length if tickets else 5 }})</h3>
+      <div id="ticketList">
+        {% if tickets %}
+        {% for t in tickets %}
+        <div class="ticket-item" onclick="selectTicket('{{ t.id }}')" id="ticket-{{ t.id }}">
+          <span class="ticket-id">{{ t.id }}</span>
+          <span class="ticket-customer">{{ t.customer }}</span>
+          <span class="ticket-meta">
+            <span class="priority-badge priority-{{ t.priority|lower if t.priority|lower in ('low','medium','high','urgent') else 'medium' }}">{{ t.priority }}</span>
+            <span>¥{{ "{:,.0f}".format(t.amount) if t.amount else '--' }}</span>
+          </span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="placeholder-text">加载工单中...</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 中：状态流转图 + 日志 -->
+    <div class="flow-panel">
+      <h3>🔄 LangGraph 状态流转</h3>
+      <div class="flow-container" id="flowContainer">
+        <div class="flow-node" data-node="read_ticket">📋 读取工单</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="classify_intent">🤖 意图分类</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="fetch_order">🔍 查询订单</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="risk_assessment">⚖️ 风险评估</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="human_approval">🛑 人工审批</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="generate_response">✍️ 生成回复</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="quality_check">🔎 质检</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node" data-node="finalize">🎯 归档</div>
+      </div>
+
+      <h3>📋 执行日志</h3>
+      <div class="log-area" id="logArea">
+        <div class="placeholder-text">选择一个工单开始处理...</div>
+      </div>
+
+      <div id="responseDraft"></div>
+    </div>
+
+    <!-- 右：审批面板 -->
+    <div class="approval-panel">
+      <h3>👤 Human-in-the-Loop 审批</h3>
+      <div class="approval-body" id="approvalBody">
+        <div class="placeholder-text">当工单进入审批节点时，此处将显示待审批信息</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentTicketId = null;
+let currentThreadId = null;
+const flowNodes = document.querySelectorAll('.flow-node');
+const logArea = document.getElementById('logArea');
+const responseDraft = document.getElementById('responseDraft');
+const approvalBody = document.getElementById('approvalBody');
+
+function selectTicket(id) {
+  currentTicketId = id;
+  document.querySelectorAll('.ticket-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('ticket-' + id)?.classList.add('active');
+  startProcessing(id);
+}
+
+function startProcessing(id) {
+  // 重置 UI
+  flowNodes.forEach(n => { n.classList.remove('active','completed','error'); });
+  logArea.innerHTML = '';
+  responseDraft.innerHTML = '';
+  approvalBody.innerHTML = '<div class="placeholder-text">等待审批...</div>';
+
+  addLog('info', `🚀 开始处理工单 ${id}...`);
+
+  fetch('/api/complaints/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ ticket_id: id }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'awaiting_approval') {
+      currentThreadId = data.config?.configurable?.thread_id;
+      // 显示审批面板
+      const appr = data.approval_data;
+      const info = data.state;
+      approvalBody.innerHTML = `
+        <div class="approval-ticket">
+          <div><span class="label">工单ID:</span> <span class="value">${info.ticket_id}</span></div>
+          <div><span class="label">客户:</span> <span class="value">${info.customer_name}</span></div>
+          <div><span class="label">金额:</span> <span class="value">¥${(info.amount||0).toLocaleString()}</span></div>
+          <div><span class="label">风险等级:</span> <span class="value">${info.risk_level || 'medium'}</span></div>
+        </div>
+        <div class="approval-actions">
+          <button class="btn-approve" onclick="doApprove('approve')">✅ 批准</button>
+          <button class="btn-reject" onclick="doApprove('reject')">❌ 拒绝</button>
+        </div>
+        <textarea class="approval-comment" id="approvalComment" placeholder="审批意见（可选）..."></textarea>
+      `;
+      highlightNode('human_approval');
+    } else if (data.status === 'completed') {
+      showCompleted(data);
+    }
+    if (data.messages) {
+      data.messages.forEach(m => addLog('info', m));
+    }
+  })
+  .catch(err => addLog('error', '❌ 处理失败: ' + err.message));
+}
+
+function doApprove(action) {
+  if (!currentThreadId || !currentTicketId) {
+    alert('请先选择一个工单');
+    return;
+  }
+  const comment = document.getElementById('approvalComment')?.value || '';
+  fetch('/api/complaints/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ticket_id: currentTicketId,
+      thread_id: currentThreadId,
+      action: action,
+      comment: comment,
+      reviewer: 'Edward（系统管理员）'
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    addLog(action === 'approve' ? 'success' : 'warn', 
+      action === 'approve' ? '✅ 已批准' : '❌ 已拒绝');
+    if (data.summary) {
+      showSummary(data.summary);
+    }
+  })
+  .catch(err => addLog('error', '审批失败: ' + err.message));
+}
+
+function highlightNode(nodeName) {
+  flowNodes.forEach(n => {
+    n.classList.remove('active');
+    if (n.dataset.node === nodeName) n.classList.add('active');
+  });
+}
+
+function addLog(level, msg) {
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${level}`;
+  entry.textContent = msg;
+  logArea.appendChild(entry);
+  logArea.scrollTop = logArea.scrollHeight;
+}
+
+function showSummary(s) {
+  flowNodes.forEach(n => n.classList.add('completed'));
+  approvalBody.innerHTML = '<div class="placeholder-text">✅ 工单处理完成</div>';
+  if (s.response_draft) {
+    responseDraft.innerHTML = `
+      <h4>📝 回复草稿（质检得分: ${s.quality_score || '-'}/10）</h4>
+      <div class="response-draft">${s.response_draft.replace(/\\n/g, '<br>')}</div>
+    `;
+  }
+  addLog('success', `🎯 处理完成 | 意图: ${s.intent} | 决策: ${s.decision} | 审批: ${s.approval_status}`);
+}
+</script>
+{% endif %}
+{% endblock %}
