@@ -177,3 +177,20 @@ interfaces.app.sse_push ──▶ asyncio.Queue 广播 ──▶ GET /stream（S
 ```
 
 进程内回调 + `asyncio.Queue` 扇出，零外部依赖。这套设计成立的边界是「单 Supervisor 进程」——当前架构恰好如此（Worker 不订阅事件）。Redis 只有在做**多 Supervisor 副本水平扩展**时才是必需品，这也是 P2 决策的依据。
+
+---
+
+## 附录 A：两套编排引擎的定位（P2 决策记录）
+
+项目存在两套编排实现，**各有明确边界，不建议合并**：
+
+| 维度 | 自研 Supervisor 状态机 | LangGraph 客诉系统 |
+|:-----|:----------------------|:------------------|
+| 代码 | `orchestration/supervisor.py`（397 行） | `orchestration/complaint_agent.py`（509 行） |
+| 驱动 | 纯 Python 事件循环 + DAG 就绪调度 | LangGraph StateGraph + checkpoint 持久化 |
+| 适用 | 通用任务编排（审计/搜索/报告多步骤任务） | 单一业务流（客诉 8 节点，需中断/恢复） |
+| HITL | 无原生暂停/恢复 | `interrupt()` + `Command(resume)` 原生支持 |
+| 持久化 | 内存 + workflow.db 状态轮询 | MemorySaver 线程级 checkpoint |
+| 何时用 | 新任务类型接入总控台 | 需要人工审批节点的业务流水线 |
+
+**决策**：保留双引擎。Supervisor 面向「任意任务的通用调度」，LangGraph 面向「固定流程 + 人工审批」。若未来客诉系统需要接入总控台统一视图，可加一层薄适配（把 complaint_graph 的 checkpoint 轮询暴露为 workflow 接口），不做引擎替换。

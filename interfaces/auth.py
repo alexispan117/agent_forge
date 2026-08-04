@@ -41,8 +41,11 @@ async def get_user_by_session(session_id: str | None) -> dict | None:
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = ""):
-    return HTMLResponse(render("login.html", request=request, error=error, title="登录"))
+async def login_page(request: Request, error: str = "", next: str = ""):
+    # 已登录用户直接跳回目标页
+    if await get_user_by_session(request.cookies.get(SESSION_COOKIE)):
+        return RedirectResponse(url=next or "/", status_code=303)
+    return HTMLResponse(render("login.html", request=request, error=error, title="登录", next=next))
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -51,12 +54,16 @@ async def register_page(request: Request, error: str = ""):
 
 
 @router.post("/login", response_class=HTMLResponse)
-async def login_action(request: Request, username: str = Form(...), password: str = Form(...)):
+async def login_action(request: Request, username: str = Form(...), password: str = Form(...),
+                       next: str = Form("")):
     async with AsyncSessionLocal() as db:
         user = await crud.get_user_by_username(db, username)
         if not user or not crud.verify_password(password, user.hashed_password):
-            return HTMLResponse(render("login.html", request=request, error="用户名或密码错误", title="登录"))
-        resp = RedirectResponse(url="/", status_code=303)
+            return HTMLResponse(render("login.html", request=request, error="用户名或密码错误", title="登录", next=next))
+        # next 参数只允许站内相对路径（防开放重定向）
+        if next and not next.startswith("/"):
+            next = ""
+        resp = RedirectResponse(url=next or "/", status_code=303)
         resp.set_cookie(key=SESSION_COOKIE, value=_make_session_id(user.id),
                         max_age=SESSION_EXPIRE_DAYS * 86400, httponly=True)
         return resp

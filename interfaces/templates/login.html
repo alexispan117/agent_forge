@@ -3,6 +3,7 @@
 {% block form_subtitle %}欢迎回到 AgentForge{% endblock %}
 {% block form_content %}
 <form action="/login" method="post">
+    <input type="hidden" name="next" value="{{ next or '' }}">
     <div class="form-group">
         <label for="username">用户名</label>
         <input class="input" id="username" type="text" name="username" required autofocus>

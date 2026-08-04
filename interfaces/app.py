@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.config import load_config
@@ -63,6 +63,37 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AgentForge", lifespan=lifespan)
+
+
+# ── 全局登录检查中间件 ──
+# 所有前端页面（HTML）访问前必须登录；未登录 → 302 跳转 /login
+# 白名单：登录/注册页、静态资源、健康检查、SSE、API（API 用 401 而非跳转）
+_PUBLIC_PREFIXES = ("/login", "/register", "/static", "/health", "/stream")
+_API_PREFIXES = ("/api/", "/feedback", "/openapi.json", "/docs", "/redoc")
+
+
+@app.middleware("http")
+async def require_login_middleware(request: Request, call_next):
+    # 白名单路径直接放行
+    path = request.url.path
+    if path.startswith(_PUBLIC_PREFIXES) or path == "/logout":
+        return await call_next(request)
+
+    # API 路径：未登录返回 401 JSON（不跳转，供前端 fetch 处理）
+    if path.startswith(_API_PREFIXES) or path == "/feedback/stats":
+        user = await get_user_by_session(request.cookies.get(SESSION_COOKIE))
+        if not user:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "未登录"}, status_code=401)
+        return await call_next(request)
+
+    # 页面路径：未登录 → 302 跳登录页（携带 next 参数，登录后跳回）
+    user = await get_user_by_session(request.cookies.get(SESSION_COOKIE))
+    if not user:
+        from urllib.parse import quote
+        next_url = quote(path, safe="/?=&")
+        return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
+    return await call_next(request)
 
 
 class SPAStaticFiles(StaticFiles):

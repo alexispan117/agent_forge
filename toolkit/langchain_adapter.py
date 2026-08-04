@@ -11,15 +11,35 @@ from pydantic import BaseModel, Field
 from toolkit.registry import get_tool, list_tools, call_tool
 
 
-def _create_schema(name: str, description: str) -> Type[BaseModel]:
-    """动态创建 Pydantic Schema（给 LangChain 用）"""
+def _create_schema(name: str, description: str, parameters: dict | None = None) -> Type[BaseModel]:
+    """动态创建 Pydantic Schema（给 LangChain 用）
+
+    从注册表的 JSON Schema parameters 生成字段，否则 StructuredTool
+    无法把 invoke 参数传给底层函数（空 schema → 参数丢失）。
+    Pydantic v2 需要 __annotations__ + 类属性 Field 组合。
+    """
+    annotations: dict[str, Any] = {}
+    fields: dict[str, Any] = {}
+    props = (parameters or {}).get("properties", {})
+    required = set((parameters or {}).get("required", []))
+    for pname, pinfo in props.items():
+        ptype = pinfo.get("type", "string")
+        pytype = {
+            "string": str, "integer": int, "number": float,
+            "boolean": bool, "array": list, "object": dict,
+        }.get(ptype, str)
+        annotations[pname] = pytype
+        if pname in required:
+            fields[pname] = Field(description=pinfo.get("description", ""))
+        else:
+            fields[pname] = Field(default=None, description=pinfo.get("description", ""))
+    if not fields:
+        annotations["_unused"] = str
+        fields["_unused"] = Field(default="", description="未使用参数")
     return type(
         f"{name}_schema",
         (BaseModel,),
-        {
-            "__doc__": description,
-            "__annotations__": {},
-        },
+        {"__doc__": description, "__annotations__": annotations, **fields},
     )
 
 
@@ -43,7 +63,7 @@ def to_langchain_tool(tool_name: str) -> StructuredTool:
         name=t["name"],
         description=t["description"],
         func=_run,
-        args_schema=_create_schema(t["name"], t["description"]),
+        args_schema=_create_schema(t["name"], t["description"], t.get("parameters")),
     )
 
 
@@ -72,9 +92,9 @@ def to_langchain_agent(tools: list[StructuredTool] | None = None, model=None):
 
     if model is None:
         model = ChatOpenAI(
-            model=os.getenv("MODEL", "deepseek-v4-flash"),
-            openai_api_key=os.getenv("API_KEY"),
-            openai_api_base=os.getenv("BASE_URL", "https://api.deepseek.com"),
+            model=os.getenv("LLM_MODEL", "deepseek-v4-flash"),
+            openai_api_key=os.getenv("LLM_API_KEY"),
+            openai_api_base=os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
             temperature=0.3,
         )
 

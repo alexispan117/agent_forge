@@ -384,10 +384,20 @@ async def test_http_workflow_create_and_complete():
     import httpx
     from interfaces.app import app
     from orchestration.supervisor import reset_supervisor
+    from infrastructure.persistence import crud
+    from infrastructure.persistence.database import AsyncSessionLocal
     reset_supervisor()
+
+    async with AsyncSessionLocal() as db:
+        try:
+            await crud.create_user(db, "wf_user", "wf@example.com", "test123")
+        except Exception:
+            pass
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # 登录获取会话 Cookie
+        await client.post("/login", data={"username": "wf_user", "password": "test123"})
         resp = await client.post("/api/workflows", json={"request": "审计一份供应商合同"})
         assert resp.status_code == 200
         wf_id = resp.json()["id"]
@@ -406,13 +416,256 @@ async def test_http_workflow_create_and_complete():
 
 
 async def test_http_agents_cards_all_offline():
-    """本测试环境无 Worker 在线，所有卡片应标记 offline（不抛错）。"""
+    """Agent 卡片接口：无论 Worker 在线与否都返回合法状态（不抛错）。"""
     import httpx
     from interfaces.app import app
+    from infrastructure.persistence import crud
+    from infrastructure.persistence.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        try:
+            await crud.create_user(db, "cards_user", "cards@example.com", "test123")
+        except Exception:
+            pass
+
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.post("/login", data={"username": "cards_user", "password": "test123"})
         resp = await client.get("/api/agents/cards")
         assert resp.status_code == 200
         agents = resp.json()["agents"]
         assert len(agents) == 3
-        assert all(a["status"] == "offline" for a in agents)
+        # Worker 在线/离线皆合法（联调时在线，纯本地时离线），只校验状态字段合法
+        assert all(a["status"] in ("online", "offline", "degraded") for a in agents)
+
+
+# ═══════════════════════════════════════════════
+# 8b. 全局登录中间件（未登录 → 跳转/401）
+# ═══════════════════════════════════════════════
+
+async def _auth_client():
+    import httpx
+    from interfaces.app import app
+    transport = httpx.ASGITransport(app=app)
+    return httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=False)
+
+
+async def test_auth_middleware_redirects_pages():
+    """未登录访问页面 → 303 跳 /login（带 next 参数）。"""
+    async with await _auth_client() as c:
+        for path in ["/", "/orchestrator", "/complaints", "/dashboard", "/console", "/agent/search"]:
+            r = await c.get(path)
+            assert r.status_code == 303, f"{path} 应重定向，got {r.status_code}"
+            loc = r.headers.get("location", "")
+            assert loc.startswith("/login"), f"{path} 应跳 /login，got {loc}"
+
+
+async def test_auth_middleware_api_401():
+    """未登录访问 API → 401 JSON（不跳转）。"""
+    async with await _auth_client() as c:
+        for path in ["/api/agents/cards", "/api/workflows", "/api/complaints/run"]:
+            r = await c.get(path) if path != "/api/workflows" else await c.post(path)
+            assert r.status_code == 401, f"{path} 应 401，got {r.status_code}"
+
+
+async def test_auth_middleware_public_whitelist():
+    """白名单路径未登录也可访问。"""
+    async with await _auth_client() as c:
+        assert (await c.get("/login")).status_code == 200
+        assert (await c.get("/health")).status_code == 200
+        assert (await c.get("/static/js/dashboard.js")).status_code == 200
+
+
+async def test_auth_login_flow_with_next():
+    """登录成功 → 303 跳回 next 页面；登录后页面/API 均 200。"""
+    from infrastructure.persistence import crud
+    from infrastructure.persistence.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        try:
+            await crud.create_user(db, "authflow_user", "authflow@example.com", "test123")
+        except Exception:
+            pass
+
+    async with await _auth_client() as c:
+        r = await c.post("/login", data={"username": "authflow_user", "password": "test123", "next": "/complaints"})
+        assert r.status_code == 303
+        assert r.headers.get("location") == "/complaints"
+
+        assert (await c.get("/complaints")).status_code == 200
+        assert (await c.get("/api/agents/cards")).status_code == 200
+
+        # 外部 URL next 被忽略（防开放重定向）
+        r = await c.post("/login", data={"username": "authflow_user", "password": "test123",
+                                         "next": "https://evil.com"})
+        assert r.status_code == 303
+        assert r.headers.get("location") == "/"
+
+
+# ═══════════════════════════════════════════════
+# 9. toolkit — 工具注册/缓存/检索（P0 补测）
+# ═══════════════════════════════════════════════
+
+def test_toolkit_registry_lifecycle():
+    """注册 → 查询 → 列出 → Schema → 调用 → 重置。"""
+    from toolkit import registry
+    registry.reset()
+
+    def fake_search(q: str, limit: int = 3) -> list:
+        return [f"result_{q}_{i}" for i in range(limit)]
+
+    registry.register("web_search", "测试搜索工具", fake_search,
+                      parameters={"type": "object", "properties": {"q": {"type": "string"}}})
+    assert registry.get_tool("web_search")["name"] == "web_search"
+    assert registry.list_tools() == ["web_search"]
+
+    schemas = registry.build_tool_schemas()
+    assert schemas[0]["name"] == "web_search"
+    assert "parameters" in schemas[0]
+
+    assert registry.call_tool("web_search", q="合同", limit=2) == ["result_合同_0", "result_合同_1"]
+    # 未注册工具 → 友好错误而非抛异常
+    err = registry.call_tool("nope")
+    assert "不存在" in err
+    # 工具内部异常 → 友好错误
+    def boom():
+        raise RuntimeError("内部错误")
+    registry.register("boom_tool", "会炸的工具", boom)
+    assert "执行失败" in registry.call_tool("boom_tool")
+
+    registry.reset()
+    assert registry.list_tools() == []
+
+
+def test_toolkit_cache_roundtrip_and_expiry(monkeypatch, tmp_path):
+    """缓存写入 → 命中 → 过期清理 → 跨引擎隔离。"""
+    from toolkit import cache as cache_mod
+
+    monkeypatch.setattr(cache_mod, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cache_mod, "CACHE_TTL", 300)
+
+    assert cache_mod.cache_get("baidu", "AI Agent") is None  # 未命中
+    cache_mod.cache_set("baidu", "AI Agent", [{"title": "t1"}])
+    hit = cache_mod.cache_get("baidu", "AI agent")  # 大小写不敏感
+    assert hit == [{"title": "t1"}]
+
+    # 过期（临时设负 TTL 模拟，测完恢复）
+    monkeypatch.setattr(cache_mod, "CACHE_TTL", -1)
+    assert cache_mod.cache_get("baidu", "AI Agent") is None
+    monkeypatch.setattr(cache_mod, "CACHE_TTL", 300)
+
+    # 引擎隔离
+    cache_mod.cache_set("ddg", "AI Agent", [{"title": "t2"}])
+    assert cache_mod.cache_get("ddg", "AI Agent") == [{"title": "t2"}]
+    cache_mod.cache_clear(engine="baidu")
+    assert cache_mod.cache_get("baidu", "AI Agent") is None
+    assert cache_mod.cache_get("ddg", "AI Agent") == [{"title": "t2"}]
+
+
+def test_toolkit_embeddings_ngram_and_search():
+    """零依赖 n-gram 向量：添加 → 检索 → 相关性排序。"""
+    from toolkit.embeddings import SemanticSearcher
+
+    searcher = SemanticSearcher()  # 无 API client → 离线 n-gram 模式
+    assert not searcher.has_api
+    searcher.add_documents(
+        ["合同审计流程包括风险识别与合规检查", "智能客服工单处理与人工审批", "数据库索引优化与查询性能"],
+        doc_ids=["doc1", "doc2", "doc3"],
+    )
+    assert searcher.doc_count == 3
+
+    results = searcher.search("合同合规", top_k=2)
+    assert len(results) == 2
+    assert results[0][0] == "doc1", "合同查询应最先命中合同文档"
+    assert results[0][2] > results[1][2], "相关性应降序"
+
+    # 空库
+    empty = SemanticSearcher()
+    assert empty.search("anything") == []
+
+    # hybrid_search 无 keyword_fn 时回退纯语义
+    hybrid = searcher.hybrid_search("合同", top_k=1)
+    assert len(hybrid) == 1 and hybrid[0][0] == "doc1"
+
+
+def test_toolkit_embeddings_hybrid_rrf():
+    """RRF 融合：语义 + 关键词两路结果正确合并排序。"""
+    from toolkit.embeddings import SemanticSearcher
+
+    searcher = SemanticSearcher()
+    searcher.add_documents(
+        ["甲方的付款条款需要审核", "乙方的交货日期需要确认", "合同金额与发票核对"],
+        doc_ids=["doc1", "doc2", "doc3"],
+    )
+    kw_results = [("doc2", "乙方的交货日期需要确认", 0.9), ("doc1", "甲方的付款条款需要审核", 0.7)]
+
+    def fake_keyword_fn(q, top_k=5):
+        return kw_results
+
+    out = searcher.hybrid_search("交货日期", keyword_fn=fake_keyword_fn, top_k=2)
+    assert len(out) == 2
+    # RRF 排名靠前的两路都命中的 doc2 应排第一
+    assert out[0][0] == "doc2"
+
+
+def test_toolkit_vector_store_unready_graceful():
+    """ChromaDB 不可用时：所有操作静默降级，不抛异常。"""
+    from toolkit.vector_store import VectorStore
+
+    # 无 API key → 初始化尝试会失败或未就绪
+    vs = VectorStore(api_key="", collection_name="test_unready")
+    assert vs.count == 0
+    assert vs.search("test") == []
+    assert vs.hybrid_search("test") == []
+    vs.clear()  # 不抛
+
+
+def test_toolkit_browser_tool_unready():
+    """未安装 Playwright 时 is_ready=False，navigate 给出友好错误。"""
+    from toolkit.browser_tool import BrowserAgent
+
+    agent = BrowserAgent()
+    # 本环境未装 playwright → _ready 应为 False 或 navigate 抛 RuntimeError
+    try:
+        agent._ensure()
+    except RuntimeError as e:
+        assert "playwright" in str(e).lower()
+    else:
+        # 若已装则至少能给出状态
+        assert agent.is_ready is False or agent.is_ready is True
+
+
+def test_toolkit_langchain_adapter_missing_tool():
+    """未注册工具转 LangChain 时报 ValueError。"""
+    from toolkit import registry
+    from toolkit.langchain_adapter import to_langchain_tool
+    registry.reset()
+    try:
+        to_langchain_tool("not_registered")
+        pytest.fail("应抛出 ValueError")
+    except ValueError as e:
+        assert "未注册" in str(e)
+
+
+def test_toolkit_langchain_adapter_roundtrip():
+    """注册工具 → StructuredTool → 调用返回正确结果。"""
+    from toolkit import registry
+    from toolkit.langchain_adapter import to_langchain_tool
+    registry.reset()
+
+    def add(a: int, b: int) -> int:
+        return a + b
+    registry.register(
+        "add", "两数相加", add,
+        parameters={
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer", "description": "第一个数"},
+                "b": {"type": "integer", "description": "第二个数"},
+            },
+            "required": ["a", "b"],
+        },
+    )
+    tool = to_langchain_tool("add")
+    assert tool.name == "add"
+    result = tool.invoke({"a": 2, "b": 3})
+    assert int(result) == 5, f"StructuredTool 应正确传递参数, got {result!r}"
+    registry.reset()

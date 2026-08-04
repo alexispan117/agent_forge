@@ -62,6 +62,8 @@ cover/
 *.db-wal
 data/
 chroma_db/
+graphify-out/
+node_modules/
 .spyproject/
 .idea/
 .vscode/

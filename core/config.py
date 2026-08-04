@@ -41,10 +41,41 @@ def _expand(value):
     return value
 
 
+def _audit_key_safety(raw: dict) -> None:
+    """启动自检：config.yaml 中若存在未占位符化的真实密钥，打印警告。
+
+    防止「把密钥直接写进 yaml」的误操作——占位符 ${VAR} 是唯一允许的形式。
+    """
+    import warnings
+
+    _REAL_KEY = re.compile(
+        r"(sk-[A-Za-z0-9]{16,}|bce-v3/[A-Za-z0-9]{16,}|[A-Za-z0-9]{32,})"
+    )
+
+    def walk(node, path: str):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{path}.{k}" if path else str(k))
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, f"{path}[{i}]")
+        elif isinstance(node, str):
+            if _REAL_KEY.search(node):
+                warnings.warn(
+                    f"⚠️ 安全警告: config.yaml 的 '{path}' 疑似包含真实密钥！"
+                    "请改用环境变量占位符 ${VAR}（如 ${LLM_API_KEY}），"
+                    "真实密钥只放在 .env（已被 .gitignore 排除）。",
+                    stacklevel=2,
+                )
+
+    walk(raw, "")
+
+
 def load_config() -> dict:
     """加载全局配置（环境变量优先，密钥不落库）。"""
     _load_dotenv()
     if not CONFIG_PATH.exists():
         return {"llm": {"enabled": False}}
     raw = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    _audit_key_safety(raw)
     return _expand(raw)

@@ -298,7 +298,8 @@ class KnowledgeBot(BaseRuntime):
             context_text = "\n\n".join(f"【文档 {i+1}】{src}\n{text}" for i, (_, text, src, _) in enumerate(merged))
             sources = [{"source": src, "relevance": round(sc, 2)} for _, _, src, sc in merged]
 
-            # TODO: 如果 Embedding API 连续失败 3 次，熔断器自动切换到纯关键词
+            # 熔断已实现：Embedding API 连续失败 3 次（failure_threshold=3）后
+            # CircuitBreaker 自动打开，_retrieve 内降级到纯关键词检索（见第 388-397 行）
             self._log.debug(f"检索结果: {len(merged)} 条, 方式: {self._retrieval_method}")
 
             # ── Step 2: 上下文压缩检查 ──
